@@ -10,6 +10,8 @@ enum actions {UP=0,RIGHT=1,DOWN=2,LEFT=3}
 var cell_walls = {Vector2(0, -1): N, Vector2(1, 0): E, 
 				  Vector2(0, 1): S, Vector2(-1, 0): W}
 
+var wall_cells = {N:Vector2(0, -1), E:Vector2(1, 0), S:Vector2(0, 1), W:Vector2(-1, 0)}
+
 var tile_size = 64  # tile size (in pixels)
 export var width = 10  # width of map (in tiles)
 export var height = 10  # height of map (in tiles)
@@ -76,6 +78,25 @@ func make_maze():
 		
 		# skips a frame to update the map before continuing
 		yield(get_tree(), 'idle_frame')
+	
+	# create alternate paths
+	for i in range((width*height)/4):
+		var x = int(rand_range(1,width-1))
+		var y = int(rand_range(1,height-1))
+		var dirs = [N,E,S,W]
+		var chosen = dirs[randi()%4]
+		Map.set_cell(x,y,~(~Map.get_cell(x,y) | chosen))
+		var to_pos = Vector2(x+wall_cells[chosen].x,y+wall_cells[chosen].y)
+		var new_dir = 0
+		match chosen:
+			N: new_dir = S
+			S: new_dir = N
+			E: new_dir = W
+			W: new_dir = E
+		Map.set_cellv(to_pos,~(~Map.get_cellv(to_pos) | new_dir))
+		
+		yield(get_tree(), 'idle_frame')
+	
 	Solver.ready()
 
 

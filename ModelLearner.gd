@@ -89,7 +89,7 @@ func move_backwards():
 ## Fills the Q table using an adapted Q learning algorithm where alpha is always 1
 func fill_qtable(states_to_visit,current_pos,visited):
 	for state in states_to_visit[current_pos]:
-		if not state in visited:
+		if qtable[state] < qtable[current_pos]:
 			qtable[state] = rewards[state]/rewards.size() + discount_rate * get_best_neighbor(states_to_visit[state])[1]
 			visited.append(state)
 			fill_qtable(states_to_visit,state,visited)
@@ -100,11 +100,15 @@ func fill_qtable(states_to_visit,current_pos,visited):
 func get_best_neighbor(neighbors):
 	var best_neighbor = neighbors[randi()%neighbors.size()]
 	var best_value = 0
+	var best_neighbors = [best_neighbor]
 	for neighbor in neighbors:
 		if neighbor != null and neighbor in qtable and qtable[neighbor] > best_value:
 			best_neighbor = neighbor
 			best_value = qtable[best_neighbor]
-	return [best_neighbor,best_value]
+			best_neighbors = [best_neighbor]
+		elif neighbor != null and neighbor in qtable and qtable[neighbor] == best_value:
+			best_neighbors.append(neighbor)
+	return [best_neighbors[randi()%best_neighbors.size()],best_value]
 
 
 ## Explores the map by always exploring unknown tiles and otherwise following the best path
