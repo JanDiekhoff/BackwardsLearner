@@ -19,6 +19,7 @@ var rewards = {}
 
 var learning_rate = 0.8 
 var discount_rate = .99
+var epsilon = 0.1
 
 func _ready():
 	set_physics_process(false)
@@ -26,12 +27,13 @@ func _ready():
 
 ## called by the Maze when it is done setting up
 func ready():
+	pause_mode = Node.PAUSE_MODE_STOP
 	map = get_parent()
 	# sets the initial values needed to start
 	state = map.default_state
 	pos = position/map.tile_size
 	explored_map[pos] = [null,null,null,null]
-	rewards[pos] = -1
+	rewards[pos] = 0
 	map.add_pos(pos)
 	
 	set_physics_process(true)
@@ -71,11 +73,29 @@ func move_backwards():
 	
 	# Fills all Q table states with an initial value. This is necessary for the proper filling in the next step
 	for state in explored_map:
-		if not state in qtable:
+		if not state in rewards:
 			qtable[state] = -INF
+		else:
+			qtable[state] = rewards[state]
+		
 	
 	# Recursive backtracker to fill the Q table
-	fill_qtable(states_to_visit,pos,[pos])
+	var queue = [pos]
+	var explored = []
+	while queue.size() > 0:
+		if not queue.front() in explored:
+			explored.append(queue.front())
+		for state in states_to_visit[queue.front()]:
+			if not state in explored:
+				queue.append(state)
+		queue.pop_front()
+	
+	
+	#table_queue = _fill_qtable_queue(states_to_visit,table_queue,[])
+	
+	for state in explored:
+		#print(state)
+		qtable[state] = rewards[state] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
 	
 	print_results()
 	
@@ -86,27 +106,40 @@ func move_backwards():
 	goal_found = false
 
 
+func _fill_qtable_queue(states_to_visit,queue,explored):
+	explored.append(queue[0])
+	for state in states_to_visit[queue[0]]:
+		if not state in queue:
+			queue.append(state)
+	for state in states_to_visit[queue[0]]:
+		if not state == queue[0] and not state in explored:
+			queue = _fill_qtable_queue(states_to_visit,queue,explored)
+	return queue
+
+
 ## Fills the Q table using an adapted Q learning algorithm where alpha is always 1
-func fill_qtable(states_to_visit,current_pos,visited):
+func _fill_qtable(states_to_visit,current_pos,visited):
 	for state in states_to_visit[current_pos]:
 		if qtable[state] < qtable[current_pos]:
-			qtable[state] = rewards[state]/rewards.size() + discount_rate * get_best_neighbor(states_to_visit[state])[1]
+			qtable[state] = rewards[state] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
 			visited.append(state)
-			fill_qtable(states_to_visit,state,visited)
+			_fill_qtable(states_to_visit,state,visited)
 
 
 ## Returns the best neighbor and its Q value
 ## If all neighbors have a value of 0 or lower, returns a random neighbor
-func get_best_neighbor(neighbors):
+func get_best_neighbor(pos,neighbors):
 	var best_neighbor = neighbors[randi()%neighbors.size()]
+	while best_neighbor == pos:
+		best_neighbor = neighbors[randi()%neighbors.size()]
 	var best_value = 0
 	var best_neighbors = [best_neighbor]
 	for neighbor in neighbors:
-		if neighbor != null and neighbor in qtable and qtable[neighbor] > best_value:
+		if neighbor != null and neighbor in qtable and qtable[neighbor] > best_value and neighbor != pos:
 			best_neighbor = neighbor
 			best_value = qtable[best_neighbor]
 			best_neighbors = [best_neighbor]
-		elif neighbor != null and neighbor in qtable and qtable[neighbor] == best_value:
+		elif neighbor != null and neighbor in qtable and qtable[neighbor] == best_value and neighbor != pos:
 			best_neighbors.append(neighbor)
 	return [best_neighbors[randi()%best_neighbors.size()],best_value]
 
@@ -122,7 +155,7 @@ func move_forwards():
 		chosen_direction = get_unexplored_path(explored_map[pos])
 	# if there isn't, we choose the direction with the highest Q value
 	else:
-		chosen_direction = get_direction_to(pos,get_best_neighbor(explored_map[pos])[0])
+		chosen_direction = get_direction_to(pos,get_best_neighbor(pos,explored_map[pos])[0])
 	
 	var old_pos = pos
 	# Tell the environment where are and what we want to do
@@ -149,11 +182,12 @@ func move_forwards():
 		goal_found = true
 		rewards[pos] = result[1]
 		qtable[pos] = result[1]
+		return
 	
 	# If we find a tile that doesn't have unexplored directions, we backtrack until we find one that does
 	# To prevent the Solver from constantly backtracking after the first round of exploration, 
 	# it will only do this if it doesn't have a "Q value path" to follow
-	while not has_unexplored_path(explored_map[pos]) and exploring and not get_best_neighbor(explored_map[pos])[1] > 0:
+	while not has_unexplored_path(explored_map[pos]) and exploring and not get_best_neighbor(pos,explored_map[pos])[1] > 0:
 		if not steps_taken.size(): return
 		result = map.step(state,go_back(steps_taken[steps_taken.size()-1]))
 		pos = position/map.tile_size
@@ -195,7 +229,6 @@ func go_back(dir):
 		actions.DOWN: return actions.UP
 		actions.LEFT: return actions.RIGHT
 		actions.RIGHT: return actions.LEFT
-		_: return -1 # error case
 		_: return -1 # error case
 
 

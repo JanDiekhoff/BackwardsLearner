@@ -44,6 +44,7 @@ func check_neighbors(cell, unvisited):
 ## Creates the maze for the agent to explore
 ## Algorithm adapted from https://github.com/kidscancode/godot3_procgen_demos
 func make_maze():
+	pause_mode = Node.PAUSE_MODE_PROCESS
 	# array of unvisited tiles
 	var unvisited = []  
 	var stack = []
@@ -139,7 +140,7 @@ func calculate_reward(hit_wall):
 		return -10
 	# to discourage needless movement, every action returns -1
 	else:
-		return -1
+		return 0
 
 
 ## Checks for a wall in the direction from the state
