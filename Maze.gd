@@ -78,7 +78,7 @@ func make_maze():
 			current = stack.pop_back()
 		
 		# skips a frame to update the map before continuing
-		yield(get_tree(), 'idle_frame')
+		#yield(get_tree(), 'idle_frame')
 	
 	# create alternate paths
 	for i in range((width*height)/4):
@@ -96,7 +96,7 @@ func make_maze():
 			W: new_dir = E
 		Map.set_cellv(to_pos,~(~Map.get_cellv(to_pos) | new_dir))
 		
-		yield(get_tree(), 'idle_frame')
+		#yield(get_tree(), 'idle_frame')
 	
 	Solver.ready()
 

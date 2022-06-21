@@ -18,8 +18,8 @@ var qtable = {}
 var rewards = {}
 
 var learning_rate = 0.8 
-var discount_rate = .99
-var epsilon = .1
+var discount_rate = .9
+var epsilon = 1
 var exploration_round = false
 
 func _ready():
@@ -34,8 +34,8 @@ func ready():
 	state = map.default_state
 	old_state = state
 	explored_map[state] = [null,null,null,null]
+	rewards[state] = [-INF,-INF,-INF,-INF]
 	unexplored_states.append(state)
-	rewards[state] = 0
 	map.add_pos(state)
 	
 	set_physics_process(true)
@@ -75,10 +75,10 @@ func move_backwards():
 	
 	# Fills all Q table states with an initial value. This is necessary for the proper filling in the next step
 	for state in explored_map:
-		if not state in rewards:
-			qtable[state] = -INF
-		else:
-			qtable[state] = rewards[state]
+		qtable[state] = [-INF,-INF,-INF,-INF]
+		for action in range(actions.size()):
+			if  state in rewards:
+				qtable[state][action] = rewards[state][action]
 	
 	# Recursive backtracker to fill the Q table
 	var queue = [state]
@@ -92,7 +92,8 @@ func move_backwards():
 		queue.pop_front()
 	
 	for state in explored:
-		qtable[state] = rewards[state] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
+		for action in range(actions.size()):
+			qtable[state][action] = rewards[state][action] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
 	print_results()
 	
 	# Reset the solver to its default position
@@ -119,11 +120,16 @@ func get_best_neighbor(pos,neighbors):
 	var best_value = 0
 	var best_neighbors = [best_neighbor]
 	for neighbor in neighbors:
-		if neighbor != null and neighbor in qtable and qtable[neighbor] > best_value and neighbor != pos:
+		if neighbor == null or not neighbor in qtable: continue
+		var neighbor_best = -INF
+		for value in qtable[neighbor]:
+			neighbor_best = max(neighbor_best, value)
+		
+		if neighbor_best > best_value and neighbor != pos:
 			best_neighbor = neighbor
-			best_value = qtable[best_neighbor]
+			best_value = neighbor_best
 			best_neighbors = [best_neighbor]
-		elif neighbor != null and neighbor in qtable and qtable[neighbor] == best_value and neighbor != pos:
+		elif neighbor_best == best_value and neighbor != pos:
 			best_neighbors.append(neighbor)
 	return [best_neighbors[randi()%best_neighbors.size()],best_value]
 
@@ -162,6 +168,8 @@ func move_forwards():
 			var result = map.step(state,chosen_direction)
 			old_state = state
 			state = result[0]
+			if not state in rewards:
+				rewards[state] = [-INF,-INF,-INF,-INF]
 			if not state in explored_map.keys():
 				explored_map[state] = [null,null,null,null]
 				if not result[2]:
@@ -176,7 +184,7 @@ func move_forwards():
 			
 			explored_map[old_state][chosen_direction] = state
 			if not result[3]: 
-				rewards[state] = result[1]
+				rewards[state][chosen_direction] = result[1]
 				steps_taken.append(chosen_direction)
 				explored_map[state][go_back(chosen_direction)] = old_state
 	
@@ -206,9 +214,11 @@ func move_forwards():
 			i+=1
 
 	# If we haven't been to this position before, we need to initialize it
+	if not state in rewards:
+		rewards[state] = [-INF,-INF,-INF,-INF]
 	if not state in explored_map.keys():
 		explored_map[state] = [null,null,null,null]
-		rewards[state] = result[1]
+		rewards[state][chosen_direction] = result[1]
 	
 	check_neighbor(state)
 	if not state in unexplored_states and has_unexplored_path(explored_map[state]):
@@ -223,7 +233,7 @@ func move_forwards():
 	# If we reached the end, we prepare for filling the Q table backwards
 	if result[2]:
 		goal_found = true
-		rewards[state] = result[1]
+		rewards[state][chosen_direction] = result[1]
 		qtable[state] = result[1]
 		return
 	
@@ -256,7 +266,10 @@ func print_results():
 		var n = Node2D.new()
 		var l = Label.new()
 		# Limits the text to two decimal places to increase readability
-		l.text = str(stepify(qtable[state],.01))
+		var best_reward = -INF
+		for reward in qtable[state]:
+			best_reward = max(best_reward,reward)
+		l.text = str(stepify(best_reward,.01))
 		# Makes the text red to increase readability
 		l.modulate = Color.crimson
 		# Moves the text from the corner closer to the center of the tile
