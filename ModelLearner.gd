@@ -5,21 +5,22 @@ extends Node2D
 enum actions {UP=0,RIGHT=1,DOWN=2,LEFT=3}
 var map
 
+var old_state
 var state
 var explored_map = {}
 var steps_taken := []
+var unexplored_states = []
 
 var goal_found = false
 var running = false
-
-var pos
 
 var qtable = {}
 var rewards = {}
 
 var learning_rate = 0.8 
 var discount_rate = .99
-var epsilon = 0.1
+var epsilon = .1
+var exploration_round = false
 
 func _ready():
 	set_physics_process(false)
@@ -31,20 +32,21 @@ func ready():
 	map = get_parent()
 	# sets the initial values needed to start
 	state = map.default_state
-	pos = position/map.tile_size
-	explored_map[pos] = [null,null,null,null]
-	rewards[pos] = 0
-	map.add_pos(pos)
+	old_state = state
+	explored_map[state] = [null,null,null,null]
+	unexplored_states.append(state)
+	rewards[state] = 0
+	map.add_pos(state)
 	
 	set_physics_process(true)
 
 
 ## called once per frame
 func _physics_process(delta):
-	step()
+	move()
 
 
-func step():
+func move():
 	# since a step may still be in process when _physics_process() is called again,
 	# we lock our function with "running"
 	if not running:
@@ -77,10 +79,9 @@ func move_backwards():
 			qtable[state] = -INF
 		else:
 			qtable[state] = rewards[state]
-		
 	
 	# Recursive backtracker to fill the Q table
-	var queue = [pos]
+	var queue = [state]
 	var explored = []
 	while queue.size() > 0:
 		if not queue.front() in explored:
@@ -90,40 +91,23 @@ func move_backwards():
 				queue.append(state)
 		queue.pop_front()
 	
-	
-	#table_queue = _fill_qtable_queue(states_to_visit,table_queue,[])
-	
 	for state in explored:
-		#print(state)
 		qtable[state] = rewards[state] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
-	
 	print_results()
 	
 	# Reset the solver to its default position
 	position = Vector2.ZERO
-	pos = position
+	steps_taken.clear()
 	state = position
 	goal_found = false
-
-
-func _fill_qtable_queue(states_to_visit,queue,explored):
-	explored.append(queue[0])
-	for state in states_to_visit[queue[0]]:
-		if not state in queue:
-			queue.append(state)
-	for state in states_to_visit[queue[0]]:
-		if not state == queue[0] and not state in explored:
-			queue = _fill_qtable_queue(states_to_visit,queue,explored)
-	return queue
-
-
-## Fills the Q table using an adapted Q learning algorithm where alpha is always 1
-func _fill_qtable(states_to_visit,current_pos,visited):
-	for state in states_to_visit[current_pos]:
-		if qtable[state] < qtable[current_pos]:
-			qtable[state] = rewards[state] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
-			visited.append(state)
-			_fill_qtable(states_to_visit,state,visited)
+	var i = 0
+	for s in unexplored_states:
+		if not has_unexplored_path(explored_map[s]): 
+			unexplored_states.remove(i)
+		i+=1
+	
+	# decide, if the next round will be an exploration round
+	exploration_round = unexplored_states.size() > 0 and randf() <= epsilon
 
 
 ## Returns the best neighbor and its Q value
@@ -148,49 +132,108 @@ func get_best_neighbor(pos,neighbors):
 func move_forwards():
 	var exploring = false
 	var chosen_direction = -1
+	old_state = state
 	
-	# if there is an unknown path we always want to explore it
-	if has_unexplored_path(explored_map[pos]):
+	# explore unknown paths that are not directly adjacent to the path
+	if exploration_round:
+		# to find the path to a position with an unknown path, A* is used
+		var astar = AStar2D.new()
+		var back = {}
+		var x = 0
+		for point in explored_map:
+			astar.add_point(x,point)
+			back[point] = x
+			x += 1
+		for point in explored_map:
+			for neighbor in explored_map[point]:
+				if neighbor != null and neighbor != point and neighbor: 
+					astar.connect_points(back[point],back[neighbor])
+		var unexplored_pos = unexplored_states[randi() % unexplored_states.size()]
+		var path = astar.get_point_path(back[state],back[unexplored_pos])
+		path.remove(0)
+		for point in path:
+			var result = map.step(state,get_direction_to(state,point))
+			old_state = state
+			state = result[0]
+		
+		# travel the unknown path, until we hit a known tile
+		while has_unexplored_path(explored_map[state]):
+			chosen_direction = get_unexplored_path(explored_map[state])
+			var result = map.step(state,chosen_direction)
+			old_state = state
+			state = result[0]
+			if not state in explored_map.keys():
+				explored_map[state] = [null,null,null,null]
+				if not result[2]:
+					unexplored_states.append(state)
+			if not has_unexplored_path(explored_map[state]):
+				var i = 0
+				for s in unexplored_states:
+					if s == old_state: 
+						unexplored_states.remove(i)
+						break
+					i+=1
+			
+			explored_map[old_state][chosen_direction] = state
+			if not result[3]: 
+				rewards[state] = result[1]
+				steps_taken.append(chosen_direction)
+				explored_map[state][go_back(chosen_direction)] = old_state
+	
+	# if there is an unexplored path next to us, take it
+	if has_unexplored_path(explored_map[state]):
 		exploring = true
-		chosen_direction = get_unexplored_path(explored_map[pos])
+		chosen_direction = get_unexplored_path(explored_map[state])
 	# if there isn't, we choose the direction with the highest Q value
 	else:
-		chosen_direction = get_direction_to(pos,get_best_neighbor(pos,explored_map[pos])[0])
+		exploration_round = false
+		chosen_direction = get_direction_to(state,get_best_neighbor(state,explored_map[state])[0])
 	
-	var old_pos = pos
 	# Tell the environment where are and what we want to do
 	# result = [new_state, reward, done, hit_wall]
 	var result = map.step(state,chosen_direction)
-	pos = position/map.tile_size
+	old_state = state
 	state = result[0]
 	
 	# Add the new position to the position and direction we came from
-	explored_map[old_pos][chosen_direction] = pos
-	
+	explored_map[old_state][chosen_direction] = state
+	if not has_unexplored_path(explored_map[old_state]):
+		var i = 0
+		for s in unexplored_states:
+			if s == old_state: 
+				unexplored_states.remove(i)
+				break
+			i+=1
+
 	# If we haven't been to this position before, we need to initialize it
-	if not pos in explored_map.keys():
-		explored_map[pos] = [null,null,null,null]
-		rewards[pos] = result[1]
+	if not state in explored_map.keys():
+		explored_map[state] = [null,null,null,null]
+		rewards[state] = result[1]
+	
+	check_neighbor(state)
+	if not state in unexplored_states and has_unexplored_path(explored_map[state]):
+		unexplored_states.append(state)
+	
 	
 	# If we haven't hit a wall, we remember where we came from
 	if not result[3]:
-		explored_map[pos][go_back(chosen_direction)] = old_pos
+		explored_map[state][go_back(chosen_direction)] = old_state
 		steps_taken.append(chosen_direction)
 	
 	# If we reached the end, we prepare for filling the Q table backwards
 	if result[2]:
 		goal_found = true
-		rewards[pos] = result[1]
-		qtable[pos] = result[1]
+		rewards[state] = result[1]
+		qtable[state] = result[1]
 		return
 	
 	# If we find a tile that doesn't have unexplored directions, we backtrack until we find one that does
 	# To prevent the Solver from constantly backtracking after the first round of exploration, 
 	# it will only do this if it doesn't have a "Q value path" to follow
-	while not has_unexplored_path(explored_map[pos]) and exploring and not get_best_neighbor(pos,explored_map[pos])[1] > 0:
+	while not has_unexplored_path(explored_map[state]) and exploring and not get_best_neighbor(state,explored_map[state])[1] > 0:
 		if not steps_taken.size(): return
 		result = map.step(state,go_back(steps_taken[steps_taken.size()-1]))
-		pos = position/map.tile_size
+		old_state = state
 		steps_taken.remove(steps_taken.size()-1)
 		state = result[0]
 
@@ -252,6 +295,7 @@ func get_unexplored_path(slot):
 	else:
 		return null
 
+
 ## Checks if a given position has unexplored directions
 func has_unexplored_path(slot):
 	var unexplored = []
@@ -267,3 +311,15 @@ func has_unexplored_path(slot):
 				break
 	
 	return unexplored.size() > 0
+
+
+## checks, which neighboring states are walls
+func check_neighbor(state):
+	if not state in explored_map: return
+	for i in range(explored_map[state].size()):
+		if explored_map[state][i] == null:
+			var result = map.step(state,i,true)
+			if result[3]:
+				explored_map[state][i] = state
+			else:
+				map.step(result[0],go_back(i))

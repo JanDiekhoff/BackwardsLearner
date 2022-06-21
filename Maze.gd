@@ -103,7 +103,7 @@ func make_maze():
 
 ## moves the actor by a step and returns all relevant information 
 ## (new state, reward, episode finished and if it hit a wall)
-func step(state,action):
+func step(state,action,checking=false):
 	var hit_wall = false
 	
 	var dir = Vector2.ZERO
@@ -112,16 +112,17 @@ func step(state,action):
 		1: dir = Vector2.RIGHT
 		2: dir = Vector2.DOWN
 		3: dir = Vector2.LEFT
-		_: print(action)
+		_: pass #print(action)
 	
 	if can_move(state,action):
 		Solver.position += dir*tile_size
 	else:
 		hit_wall = true
 	
-	add_pos(Solver.position)
+	if not checking:
+		add_pos(Solver.position)
 	state = calculate_state(Solver.position)
-	var reward = calculate_reward(hit_wall)
+	var reward = calculate_reward(hit_wall,state)
 	
 	return [state,reward,reward>=10,hit_wall]
 
@@ -133,12 +134,11 @@ func calculate_state(pos):
 
 
 ## the bottom right corner is the terminal state
-func calculate_reward(hit_wall):
-	if Solver.position == Vector2((width-1)*64,(height-1)*64):
+func calculate_reward(hit_wall,state):
+	if state == Vector2(width-1,height-1): 
 		return 10
 	elif hit_wall:
 		return -10
-	# to discourage needless movement, every action returns -1
 	else:
 		return 0
 
