@@ -17,7 +17,7 @@ var current_episode = 0
 var learning_rate = 0.8           # Learning rate
 var max_steps = 99                # Max steps per episode
 var discount_rate = 0.95          # Discounting rate
-var state
+var current_state
 
 # Exploration parameters
 var epsilon = 1.0                 # Exploration rate
@@ -38,7 +38,7 @@ func ready():
 	map = get_parent()
 	width = map.width
 	height = map.height
-	state = map.default_state
+	current_state = map.default_state
 	for x in range(width):
 		for y in range(height):
 			qtable[Vector2(x,y)] = [0,0,0,0]
@@ -51,18 +51,18 @@ func _physics_process(delta):
 		if current_episode_steps < max_episode_steps:
 			var action
 			if randf() > epsilon:
-				action = get_best_action(qtable[state])
+				action = get_best_action(qtable[current_state])
 			else:
 				action = actions[randi() % 4]
 			
-			var result = map.step(state,action)
+			var result = map.step(current_state,action)
 			var new_state = result[0]
 			var reward = result[1]
 			
-			qtable[state][action] += learning_rate * (reward + discount_rate * qtable[new_state].max() - qtable[state][action])
+			qtable[current_state][action] += learning_rate * (reward + discount_rate * qtable[new_state].max() - qtable[current_state][action])
 			total_rewards += reward
 			
-			state = new_state
+			current_state = new_state
 			current_episode_steps += 1
 			if result[2]: start_new_episode()
 		else:
@@ -76,7 +76,7 @@ func start_new_episode():
 	rewards.append(total_rewards)
 	total_rewards = 0
 	position = Vector2.ZERO
-	state = map.default_state
+	current_state = map.default_state
 	print("\nEpisode: " + str(current_episode) + "\nSteps taken: " + str(current_episode_steps) + "\n")
 	current_episode += 1
 	steps.append(current_episode_steps)

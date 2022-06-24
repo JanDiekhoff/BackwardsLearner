@@ -6,7 +6,7 @@ enum actions {UP=0,RIGHT=1,DOWN=2,LEFT=3}
 var map
 
 var old_state
-var state
+var current_state
 var explored_map = {}
 var steps_taken := []
 var unexplored_states = []
@@ -31,12 +31,12 @@ func ready():
 	pause_mode = Node.PAUSE_MODE_STOP
 	map = get_parent()
 	# sets the initial values needed to start
-	state = map.default_state
-	old_state = state
-	explored_map[state] = [null,null,null,null]
-	rewards[state] = [-INF,-INF,-INF,-INF]
-	unexplored_states.append(state)
-	map.add_pos(state)
+	current_state = map.default_state
+	old_state = current_state
+	explored_map[current_state] = [null,null,null,null]
+	rewards[current_state] = [0,0,0,0]
+	unexplored_states.append(current_state)
+	map.add_pos(current_state)
 	
 	set_physics_process(true)
 
@@ -75,13 +75,13 @@ func move_backwards():
 	
 	# Fills all Q table states with an initial value. This is necessary for the proper filling in the next step
 	for state in explored_map:
-		qtable[state] = [-INF,-INF,-INF,-INF]
+		qtable[state] = [0,0,0,0]
 		for action in range(actions.size()):
 			if  state in rewards:
 				qtable[state][action] = rewards[state][action]
 	
 	# Recursive backtracker to fill the Q table
-	var queue = [state]
+	var queue = [current_state]
 	var explored = []
 	while queue.size() > 0:
 		if not queue.front() in explored:
@@ -94,12 +94,13 @@ func move_backwards():
 	for state in explored:
 		for action in range(actions.size()):
 			qtable[state][action] = rewards[state][action] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
+	
 	print_results()
 	
 	# Reset the solver to its default position
 	position = Vector2.ZERO
 	steps_taken.clear()
-	state = position
+	current_state = position
 	goal_found = false
 	var i = 0
 	for s in unexplored_states:
@@ -138,7 +139,7 @@ func get_best_neighbor(pos,neighbors):
 func move_forwards():
 	var exploring = false
 	var chosen_direction = -1
-	old_state = state
+	old_state = current_state
 	
 	# explore unknown paths that are not directly adjacent to the path
 	if exploration_round:
@@ -155,97 +156,36 @@ func move_forwards():
 				if neighbor != null and neighbor != point and neighbor: 
 					astar.connect_points(back[point],back[neighbor])
 		var unexplored_pos = unexplored_states[randi() % unexplored_states.size()]
-		var path = astar.get_point_path(back[state],back[unexplored_pos])
+		var path = astar.get_point_path(back[current_state],back[unexplored_pos])
 		path.remove(0)
 		for point in path:
-			var result = map.step(state,get_direction_to(state,point))
-			old_state = state
-			state = result[0]
+			var result = step(current_state,get_direction_to(current_state,point))
 		
 		# travel the unknown path, until we hit a known tile
-		while has_unexplored_path(explored_map[state]):
-			chosen_direction = get_unexplored_path(explored_map[state])
-			var result = map.step(state,chosen_direction)
-			old_state = state
-			state = result[0]
-			if not state in rewards:
-				rewards[state] = [-INF,-INF,-INF,-INF]
-			if not state in explored_map.keys():
-				explored_map[state] = [null,null,null,null]
-				if not result[2]:
-					unexplored_states.append(state)
-			if not has_unexplored_path(explored_map[state]):
-				var i = 0
-				for s in unexplored_states:
-					if s == old_state: 
-						unexplored_states.remove(i)
-						break
-					i+=1
-			
-			explored_map[old_state][chosen_direction] = state
-			if not result[3]: 
-				rewards[state][chosen_direction] = result[1]
-				steps_taken.append(chosen_direction)
-				explored_map[state][go_back(chosen_direction)] = old_state
+		while has_unexplored_path(explored_map[current_state]):
+			chosen_direction = get_unexplored_path(explored_map[current_state])
+			var result = step(current_state,chosen_direction)
+			backtrack()
 	
 	# if there is an unexplored path next to us, take it
-	if has_unexplored_path(explored_map[state]):
+	if has_unexplored_path(explored_map[current_state]):
 		exploring = true
-		chosen_direction = get_unexplored_path(explored_map[state])
+		chosen_direction = get_unexplored_path(explored_map[current_state])
 	# if there isn't, we choose the direction with the highest Q value
 	else:
 		exploration_round = false
-		chosen_direction = get_direction_to(state,get_best_neighbor(state,explored_map[state])[0])
+		chosen_direction = get_direction_to(current_state,get_best_neighbor(current_state,explored_map[current_state])[0])
 	
 	# Tell the environment where are and what we want to do
 	# result = [new_state, reward, done, hit_wall]
-	var result = map.step(state,chosen_direction)
-	old_state = state
-	state = result[0]
-	
-	# Add the new position to the position and direction we came from
-	explored_map[old_state][chosen_direction] = state
-	if not has_unexplored_path(explored_map[old_state]):
-		var i = 0
-		for s in unexplored_states:
-			if s == old_state: 
-				unexplored_states.remove(i)
-				break
-			i+=1
-
-	# If we haven't been to this position before, we need to initialize it
-	if not state in rewards:
-		rewards[state] = [-INF,-INF,-INF,-INF]
-	if not state in explored_map.keys():
-		explored_map[state] = [null,null,null,null]
-		rewards[state][chosen_direction] = result[1]
-	
-	check_neighbor(state)
-	if not state in unexplored_states and has_unexplored_path(explored_map[state]):
-		unexplored_states.append(state)
-	
-	
-	# If we haven't hit a wall, we remember where we came from
-	if not result[3]:
-		explored_map[state][go_back(chosen_direction)] = old_state
-		steps_taken.append(chosen_direction)
+	var result = step(current_state,chosen_direction)
 	
 	# If we reached the end, we prepare for filling the Q table backwards
 	if result[2]:
 		goal_found = true
-		rewards[state][chosen_direction] = result[1]
-		qtable[state] = result[1]
 		return
 	
-	# If we find a tile that doesn't have unexplored directions, we backtrack until we find one that does
-	# To prevent the Solver from constantly backtracking after the first round of exploration, 
-	# it will only do this if it doesn't have a "Q value path" to follow
-	while not has_unexplored_path(explored_map[state]) and exploring and not get_best_neighbor(state,explored_map[state])[1] > 0:
-		if not steps_taken.size(): return
-		result = map.step(state,go_back(steps_taken[steps_taken.size()-1]))
-		old_state = state
-		steps_taken.remove(steps_taken.size()-1)
-		state = result[0]
+	if exploring: backtrack()
 
 
 ## Gets the direction needed to travel from pos to new_pos.
@@ -260,22 +200,38 @@ func get_direction_to(pos,new_pos):
 ## Adds a label containing the Q value of each state to each known position
 ## These values should decrease from the terminal state
 func print_results():
-	for child in map.Results.get_children():
-		map.Results.remove_child(child)
+	var min_value = INF
+	var max_value = -INF
 	for state in qtable:
-		var n = Node2D.new()
-		var l = Label.new()
-		# Limits the text to two decimal places to increase readability
-		var best_reward = -INF
-		for reward in qtable[state]:
-			best_reward = max(best_reward,reward)
-		l.text = str(stepify(best_reward,.01))
-		# Makes the text red to increase readability
-		l.modulate = Color.crimson
-		# Moves the text from the corner closer to the center of the tile
-		n.position = (state+Vector2(.35,.35))*map.tile_size
-		n.add_child(l)
-		map.Results.add_child(n)
+		var state_max_value = -INF
+		for value in qtable[state]:
+			state_max_value = max(value,state_max_value)
+			max_value = max(value,max_value)
+		min_value = min(state_max_value,min_value)
+	
+	var offset = 0
+	if min_value < 1: 
+		offset = 1 - min_value
+		min_value += offset
+		max_value += offset
+	min_value = log(min_value)
+	max_value = log(max_value)
+	
+	for state in qtable:
+		var state_max_value = -INF
+		for value in qtable[state]:
+			state_max_value = max(value,state_max_value)
+		
+		state_max_value += offset
+		state_max_value = log(state_max_value)
+		
+		var percent = (state_max_value - min_value) / (max_value - min_value)
+		var c
+		if percent < 0.5:
+			c = Color(1,percent*2,0)
+		else:
+			c = Color(1-(percent*2-1),1,0)
+		map.paint_pos(state,c)
 
 
 ## Returns the opposite of the given direction
@@ -331,8 +287,54 @@ func check_neighbor(state):
 	if not state in explored_map: return
 	for i in range(explored_map[state].size()):
 		if explored_map[state][i] == null:
-			var result = map.step(state,i,true)
+			var result = step(state,i,false,true)
 			if result[3]:
 				explored_map[state][i] = state
 			else:
-				map.step(result[0],go_back(i))
+				step(result[0],go_back(i),false,true)
+
+
+func step(pos,dir,backtracking=false,checking=false):
+	# tell the map where we want to go and from where
+	# result = [new_state, reward, episode done, hit wall]
+	var result = map.step(pos,dir,checking)
+	if not checking:
+		old_state = current_state
+		current_state = result[0]
+		
+		# initialize rewards for the state if they dont exist yet
+		if not current_state in rewards:
+			rewards[current_state] = [0,0,0,0]
+			rewards[current_state][dir] = result[1]
+		
+		# initialize the state in the explored map
+		if not current_state in explored_map:
+			explored_map[current_state] = [null,null,null,null]
+		
+		# check for walls next to our state so that they aren't added to unexplored states
+		check_neighbor(current_state)
+		# either add or remove the state from unexplored_states
+		if has_unexplored_path(explored_map[current_state]):
+			if not result[2]: unexplored_states.append(current_state)
+		else:
+			for i in range(unexplored_states.size()):
+				if unexplored_states[i] == old_state: 
+					unexplored_states.remove(i)
+					break
+		
+		explored_map[old_state][dir] = current_state
+		if not result[3]:
+			if not backtracking: steps_taken.append(dir)
+			explored_map[current_state][go_back(dir)] = old_state
+	
+	return result
+
+
+func backtrack():
+	# If we find a tile that doesn't have unexplored directions, we backtrack until we find one that does
+	# To prevent the Solver from constantly backtracking after the first round of exploration, 
+	# it will only do this if it doesn't have a "Q value path" to follow
+	while not has_unexplored_path(explored_map[current_state]) and not get_best_neighbor(current_state,explored_map[current_state])[1] > 0:
+		if not steps_taken.size(): return
+		var result = step(current_state,go_back(steps_taken[steps_taken.size()-1]),true)
+		steps_taken.remove(steps_taken.size()-1)

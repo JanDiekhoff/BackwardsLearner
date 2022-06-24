@@ -12,12 +12,13 @@ var cell_walls = {Vector2(0, -1): N, Vector2(1, 0): E,
 
 var wall_cells = {N:Vector2(0, -1), E:Vector2(1, 0), S:Vector2(0, 1), W:Vector2(-1, 0)}
 
-var tile_size = 64  # tile size (in pixels)
+var tile_size  # tile size (in pixels)
 export var width = 10  # width of map (in tiles)
 export var height = 10  # height of map (in tiles)
 
+onready var white = preload("white.png")
+var sprites = {}
 onready var Map = $TileMap
-onready var HighlightedMap = $TileMap2
 onready var Solver = $Solver
 onready var Results = $Results
 
@@ -39,6 +40,16 @@ func check_neighbors(cell, unvisited):
 		if cell + n in unvisited:
 			list.append(cell + n)
 	return list
+
+
+func scale_camera():
+	var cam = $TileMap/Camera2D
+	if get_viewport().size.x < width*tile_size.x:
+		cam.zoom.x = (width*tile_size.x)/get_viewport().size.x
+	if get_viewport().size.y < height*tile_size.y:
+		cam.zoom.y = (height*tile_size.y)/get_viewport().size.y
+	if cam.zoom.y < cam.zoom.x: cam.zoom.y = cam.zoom.x
+	else: cam.zoom.x = cam.zoom.y
 
 
 ## Creates the maze for the agent to explore
@@ -97,7 +108,6 @@ func make_maze():
 		Map.set_cellv(to_pos,~(~Map.get_cellv(to_pos) | new_dir))
 		
 		#yield(get_tree(), 'idle_frame')
-	
 	Solver.ready()
 
 
@@ -129,14 +139,14 @@ func step(state,action,checking=false):
 
 ## Calculates the state
 func calculate_state(pos):
-	var s = Solver.position/tile_size
+	var s = pos/tile_size
 	return s
 
 
 ## the bottom right corner is the terminal state
 func calculate_reward(hit_wall,state):
 	if state == Vector2(width-1,height-1): 
-		return 10
+		return (width*height)
 	elif hit_wall:
 		return -10
 	else:
@@ -157,10 +167,20 @@ func can_move(state,direction):
 
 ## Highlights a tile once it has been visited by the solver
 func add_pos(pos):
-	pos /= tile_size
-	var tile = Map.get_cellv(pos)
-	if HighlightedMap.get_cellv(pos) == TileMap.INVALID_CELL:
-		HighlightedMap.set_cellv(pos,tile)
+	if not pos in sprites:
+		var n = Sprite.new()
+		n.centered = false
+		n.texture = white
+		n.scale = tile_size
+		n.position = pos
+		Results.add_child(n)
+		sprites[pos] = n
+
+
+func paint_pos(pos,color):
+	pos *= tile_size
+	var tile = sprites[pos]
+	tile.set_modulate(color)
 
 
 ## Starts the algorithm with the chosen type
@@ -172,4 +192,5 @@ func _on_Button_pressed(type):
 	randomize()
 	tile_size = Map.cell_size
 	default_state = calculate_state(Vector2(0,0))
+	scale_camera()
 	make_maze()
