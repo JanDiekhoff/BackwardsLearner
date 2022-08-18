@@ -134,7 +134,7 @@ func step(state,action,checking=false):
 	state = calculate_state(Solver.position)
 	var reward = calculate_reward(hit_wall,state)
 	
-	return [state,reward,reward>=10,hit_wall]
+	return [state,reward,reward>=0,hit_wall]
 
 
 ## Calculates the state
@@ -146,11 +146,11 @@ func calculate_state(pos):
 ## the bottom right corner is the terminal state
 func calculate_reward(hit_wall,state):
 	if state == Vector2(width-1,height-1): 
-		return (width*height)
+		return width*height
 	elif hit_wall:
-		return -10
+		return -5
 	else:
-		return 0
+		return -1
 
 
 ## Checks for a wall in the direction from the state
@@ -167,6 +167,7 @@ func can_move(state,direction):
 
 ## Highlights a tile once it has been visited by the solver
 func add_pos(pos):
+	return
 	if not pos in sprites:
 		var n = Sprite.new()
 		n.centered = false
@@ -179,18 +180,43 @@ func add_pos(pos):
 
 func paint_pos(pos,color):
 	pos *= tile_size
+	if not pos in sprites: return
 	var tile = sprites[pos]
 	tile.set_modulate(color)
 
+
+func print_value(pos,val):
+	val *= 100
+	val = int(val)
+	pos *= tile_size
+	pos += tile_size/3
+	var label = Label.new()
+	label.text = str(val)
+	label.rect_global_position = pos
+	$Results.add_child(label)
+
+
+func wipe_values():
+	for c in $Results.get_children():
+		c.queue_free()
+
+
+func wipe_value(pos):
+	pos *= tile_size
+	pos += tile_size/3
+	for c in $Results.get_children():
+		if c.rect_global_position == pos:
+			c.queue_free()
+			break
 
 ## Starts the algorithm with the chosen type
 func _on_Button_pressed(type):
 	remove_child($BackwardsLearner)
 	remove_child($ReinforcementLearner)
+	tile_size = Map.cell_size
+	default_state = calculate_state(Vector2(0,0))
 	Solver.set_script(load(type+".gd"))
 	started = true
 	randomize()
-	tile_size = Map.cell_size
-	default_state = calculate_state(Vector2(0,0))
 	scale_camera()
 	make_maze()

@@ -64,12 +64,12 @@ func _physics_process(delta):
 			
 			current_state = new_state
 			current_episode_steps += 1
+			print_results(current_state)
 			if result[2]: start_new_episode()
 		else:
 			start_new_episode()
 	else:
 		set_physics_process(false)
-		print_results()
 
 
 func start_new_episode():
@@ -84,9 +84,11 @@ func start_new_episode():
 	epsilon = min_epsilon + (max_epsilon - min_epsilon) * exp(-decay_rate*current_episode)
 
 
-# TODO implement
-func print_results():
-	return
+## Adds a label containing the Q value of each state to each known position
+## These values should decrease from the terminal state
+func print_results(state):
+	map.wipe_value(state)
+	map.print_value(state,qtable[state].max())
 
 
 func get_best_action(state):

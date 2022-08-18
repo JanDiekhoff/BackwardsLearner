@@ -17,7 +17,6 @@ var running = false
 var qtable = {}
 var rewards = {}
 
-var learning_rate = 0.8 
 var discount_rate = .9
 var epsilon = 1
 var exploration_round = false
@@ -76,11 +75,8 @@ func move_backwards():
 	# Fills all Q table states with an initial value. This is necessary for the proper filling in the next step
 	for state in explored_map:
 		qtable[state] = [0,0,0,0]
-		for action in range(actions.size()):
-			if  state in rewards:
-				qtable[state][action] = rewards[state][action]
 	
-	# Recursive backtracker to fill the Q table
+	# Backtracker to fill the Q table
 	var queue = [current_state]
 	var explored = []
 	while queue.size() > 0:
@@ -90,11 +86,16 @@ func move_backwards():
 			if not state in explored:
 				queue.append(state)
 		queue.pop_front()
+	explored.pop_front()
 	
+	# Adapted Q Learning function
 	for state in explored:
 		for action in range(actions.size()):
-			qtable[state][action] = rewards[state][action] + discount_rate * get_best_neighbor(state,states_to_visit[state])[1]
-	
+			if explored_map[state][action] == null: continue
+			var reward = rewards[state][action]
+			var best_neighbour = qtable[explored_map[state][action]].max()
+			var result = reward + discount_rate * best_neighbour
+			qtable[state][action] += result
 	print_results()
 	
 	# Reset the solver to its default position
@@ -112,27 +113,20 @@ func move_backwards():
 	exploration_round = unexplored_states.size() > 0 and randf() <= epsilon
 
 
-## Returns the best neighbor and its Q value
-## If all neighbors have a value of 0 or lower, returns a random neighbor
-func get_best_neighbor(pos,neighbors):
-	var best_neighbor = neighbors[randi()%neighbors.size()]
-	while best_neighbor == pos:
-		best_neighbor = neighbors[randi()%neighbors.size()]
-	var best_value = 0
-	var best_neighbors = [best_neighbor]
-	for neighbor in neighbors:
-		if neighbor == null or not neighbor in qtable: continue
-		var neighbor_best = -INF
-		for value in qtable[neighbor]:
-			neighbor_best = max(neighbor_best, value)
-		
-		if neighbor_best > best_value and neighbor != pos:
-			best_neighbor = neighbor
-			best_value = neighbor_best
-			best_neighbors = [best_neighbor]
-		elif neighbor_best == best_value and neighbor != pos:
-			best_neighbors.append(neighbor)
-	return [best_neighbors[randi()%best_neighbors.size()],best_value]
+func get_best_move(state):
+	var best_val = -INF
+	var best_actions = []
+	
+	if not current_state in qtable:
+		return [best_val,randi()%4]
+	
+	for a in explored_map[current_state].size():
+		if qtable[current_state][a] > best_val:
+			best_val = qtable[current_state][a]
+			best_actions = [a]
+		elif qtable[current_state][a] == best_val:
+			best_actions.append(a)
+	return [best_val,best_actions[randi()%best_actions.size()]]
 
 
 ## Explores the map by always exploring unknown tiles and otherwise following the best path
@@ -162,19 +156,21 @@ func move_forwards():
 			var result = step(current_state,get_direction_to(current_state,point))
 		
 		# travel the unknown path, until we hit a known tile
-		while has_unexplored_path(explored_map[current_state]):
-			chosen_direction = get_unexplored_path(explored_map[current_state])
-			var result = step(current_state,chosen_direction)
-			backtrack()
+		#while has_unexplored_path(explored_map[current_state]):
+		#	chosen_direction = get_unexplored_path(explored_map[current_state])
+		#	var result = step(current_state,chosen_direction)
+		#	backtrack()
 	
 	# if there is an unexplored path next to us, take it
 	if has_unexplored_path(explored_map[current_state]):
 		exploring = true
 		chosen_direction = get_unexplored_path(explored_map[current_state])
 	# if there isn't, we choose the direction with the highest Q value
-	else:
+	elif current_state in qtable:
 		exploration_round = false
-		chosen_direction = get_direction_to(current_state,get_best_neighbor(current_state,explored_map[current_state])[0])
+		chosen_direction = get_direction_to(current_state,explored_map[current_state][get_best_move(current_state)[1]])
+	else:
+		backtrack()
 	
 	# Tell the environment where are and what we want to do
 	# result = [new_state, reward, done, hit_wall]
@@ -197,9 +193,16 @@ func get_direction_to(pos,new_pos):
 	return -1
 
 
+func print_results():
+	map.wipe_values()
+	for state in explored_map:
+		map.print_value(state,qtable[state].max())
+
+
+
 ## Adds a label containing the Q value of each state to each known position
 ## These values should decrease from the terminal state
-func print_results():
+func draw_results():
 	var min_value = INF
 	var max_value = -INF
 	for state in qtable:
@@ -226,11 +229,7 @@ func print_results():
 		state_max_value = log(state_max_value)
 		
 		var percent = (state_max_value - min_value) / (max_value - min_value)
-		var c
-		if percent < 0.5:
-			c = Color(1,percent*2,0)
-		else:
-			c = Color(1-(percent*2-1),1,0)
+		var c = Color(1-(percent*2-1),percent*2,0)
 		map.paint_pos(state,c)
 
 
@@ -292,6 +291,8 @@ func check_neighbor(state):
 				explored_map[state][i] = state
 			else:
 				step(result[0],go_back(i),false,true)
+			
+			rewards[state][i] = result[1]
 
 
 func step(pos,dir,backtracking=false,checking=false):
@@ -305,14 +306,15 @@ func step(pos,dir,backtracking=false,checking=false):
 		# initialize rewards for the state if they dont exist yet
 		if not current_state in rewards:
 			rewards[current_state] = [0,0,0,0]
-			rewards[current_state][dir] = result[1]
+		rewards[old_state][dir] = result[1]
 		
 		# initialize the state in the explored map
 		if not current_state in explored_map:
 			explored_map[current_state] = [null,null,null,null]
 		
 		# check for walls next to our state so that they aren't added to unexplored states
-		check_neighbor(current_state)
+		if not result[2]:
+			check_neighbor(current_state)
 		# either add or remove the state from unexplored_states
 		if has_unexplored_path(explored_map[current_state]):
 			if not result[2]: unexplored_states.append(current_state)
@@ -334,7 +336,7 @@ func backtrack():
 	# If we find a tile that doesn't have unexplored directions, we backtrack until we find one that does
 	# To prevent the Solver from constantly backtracking after the first round of exploration, 
 	# it will only do this if it doesn't have a "Q value path" to follow
-	while not has_unexplored_path(explored_map[current_state]) and not get_best_neighbor(current_state,explored_map[current_state])[1] > 0:
+	while not has_unexplored_path(explored_map[current_state]) and get_best_move(current_state)[0] == -INF:
 		if not steps_taken.size(): return
 		var result = step(current_state,go_back(steps_taken[steps_taken.size()-1]),true)
 		steps_taken.remove(steps_taken.size()-1)

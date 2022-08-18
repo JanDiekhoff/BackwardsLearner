@@ -18,6 +18,10 @@ config/name="Deterministic Reinforcement Learner"
 run/main_scene="res://Maze.tscn"
 config/icon="res://icon.png"
 
+[debug]
+
+settings/gdscript/max_call_stack=2048
+
 [display]
 
 window/size/width=1280
