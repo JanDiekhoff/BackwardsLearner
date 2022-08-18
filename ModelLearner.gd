@@ -155,7 +155,7 @@ func move_forwards():
 		for point in path:
 			var result = step(current_state,get_direction_to(current_state,point))
 		
-		 travel the unknown path, until we hit a known tile
+		#travel the unknown path, until we hit a known tile
 		while has_unexplored_path(explored_map[current_state]):
 			chosen_direction = get_unexplored_path(explored_map[current_state])
 			var result = step(current_state,chosen_direction)
