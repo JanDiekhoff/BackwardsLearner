@@ -208,7 +208,6 @@ func print_results():
 		map.print_value(state,qtable[state].max())
 
 
-
 ## Adds a label containing the Q value of each state to each known position
 ## These values should decrease from the terminal state
 func draw_results():
@@ -305,9 +304,8 @@ func step(pos,dir,backtracking=false,checking=false):
 	if not current_state in explored_map:
 		explored_map[current_state] = [null,null,null,null]
 	explored_map[old_state][dir] = current_state
-	if not result[3]:
-		if not backtracking: steps_taken.append(dir)
-		explored_map[current_state][go_back(dir)] = old_state
+	if not result[3] and not backtracking:
+		steps_taken.append(dir)
 	
 	# initialize rewards for the state if they dont exist yet
 	if not current_state in rewards:
