@@ -133,7 +133,6 @@ func step(state,action,checking=false):
 		add_pos(Solver.position)
 	state = calculate_state(Solver.position)
 	var reward = calculate_reward(hit_wall,state)
-	
 	return [state,reward,reward>=0,hit_wall]
 
 
@@ -145,7 +144,7 @@ func calculate_state(pos):
 
 ## the bottom right corner is the terminal state
 func calculate_reward(hit_wall,state):
-	if state == Vector2(width-1,height-1): 
+	if state == Vector2(0,height-1) or state == Vector2(width-1,0): 
 		return width*height
 	elif hit_wall:
 		return -5
@@ -186,7 +185,6 @@ func paint_pos(pos,color):
 
 
 func print_value(pos,val):
-	val *= 100
 	val = int(val)
 	pos *= tile_size
 	pos += tile_size/3
