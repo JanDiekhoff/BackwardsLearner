@@ -106,7 +106,7 @@ func move_backwards():
 							qtable[state][action] = result
 						else: next_terminal = true
 	
-	print_results()
+	draw_results()
 	
 	# Reset the solver to its default position
 	position = Vector2.ZERO
@@ -215,10 +215,11 @@ func draw_results():
 	var min_value = INF
 	var max_value = -INF
 	for state in qtable:
+		if state in terminal_states: continue
 		var state_max_value = -INF
 		for value in qtable[state]:
 			state_max_value = max(value,state_max_value)
-			max_value = max(value,max_value)
+			max_value = max(state_max_value,max_value)
 		min_value = min(state_max_value,min_value)
 	
 	var offset = 0
@@ -230,14 +231,16 @@ func draw_results():
 	max_value = log(max_value)
 	
 	for state in qtable:
-		var state_max_value = -INF
+		if state in terminal_states: continue
+		var state_average_value = 0
 		for value in qtable[state]:
-			state_max_value = max(value,state_max_value)
+			state_average_value += value
+		state_average_value /= qtable[state].size()
 		
-		state_max_value += offset
-		state_max_value = log(state_max_value)
+		state_average_value += offset
+		state_average_value = log(state_average_value)
 		
-		var percent = (state_max_value - min_value) / (max_value - min_value)
+		var percent = (state_average_value - min_value) / (max_value - min_value)
 		var c = Color(1-(percent*2-1),percent*2,0)
 		map.paint_pos(state,c)
 
@@ -260,13 +263,6 @@ func get_unexplored_path(slot):
 		if rewards[slot][direction] == null:
 			unexplored.append(direction)
 	
-	# Prevents going back by removing the opposite of the last taken step
-	if steps_taken:
-		for i in range(unexplored.size()):
-			if unexplored[i] == go_back(steps_taken[steps_taken.size()-1]):
-				unexplored.remove(i)
-				break
-	
 	if unexplored.size() > 0:
 		return unexplored[randi() % unexplored.size()]
 	else:
@@ -279,13 +275,6 @@ func has_unexplored_path(slot):
 	for direction in range(actions.size()):
 		if rewards[slot][direction] == null:
 			unexplored.append(direction)
-	
-	# Prevents going back by removing the opposite of the last taken step
-	if steps_taken:
-		for i in range(unexplored.size()):
-			if unexplored[i] == go_back(steps_taken[steps_taken.size()-1]):
-				unexplored.remove(i)
-				break
 	
 	return unexplored.size() > 0
 
@@ -331,7 +320,6 @@ func step(pos,dir,backtracking=false,checking=false):
 	else:
 		goal_found = true
 		if not current_state in terminal_states:
-			print(str(current_state) + " found")
 			terminal_states.append(current_state)
 			rewards[current_state] = [0,0,0,0]
 	
@@ -339,11 +327,9 @@ func step(pos,dir,backtracking=false,checking=false):
 	if has_unexplored_path(current_state):
 		if not result[2]: 
 			unexplored_states.append(current_state)
-	else:
-		for i in range(unexplored_states.size()):
-			if unexplored_states[i] == old_state: 
-				unexplored_states.remove(i)
-				break
+	for state in unexplored_states:
+		if not has_unexplored_path(state):
+			unexplored_states.erase(state)
 	
 	return result
 

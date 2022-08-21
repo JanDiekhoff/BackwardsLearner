@@ -166,7 +166,6 @@ func can_move(state,direction):
 
 ## Highlights a tile once it has been visited by the solver
 func add_pos(pos):
-	return
 	if not pos in sprites:
 		var n = Sprite.new()
 		n.centered = false
