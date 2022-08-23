@@ -18,7 +18,7 @@ var running = false
 var qtable = {}
 var rewards = {}
 
-var discount_rate = .99
+var discount_rate = .96
 var epsilon = 1
 var exploration_round = false
 
@@ -145,10 +145,9 @@ func get_best_move(state):
 func move_forwards():
 	var exploring = false
 	var chosen_direction = -1
-	old_state = current_state
 	
 	# explore unknown paths that are not directly adjacent to the path
-	if exploration_round:
+	if exploration_round and unexplored_states.size() > 0:
 		# to find the path to a position with an unknown path, A* is used
 		var astar = AStar2D.new()
 		var back = {}
@@ -170,12 +169,11 @@ func move_forwards():
 			var result = step(current_state,get_direction_to(current_state,point))
 		
 		#travel the unknown path, until we hit a known tile
-		while has_unexplored_path(current_state):
-			chosen_direction = get_unexplored_path(current_state)
+		while has_unexplored_path(current_state,true):
+			chosen_direction = get_unexplored_path(current_state,true)
 			var result = step(current_state,chosen_direction)
 			if goal_found: return
-			backtrack()
-	
+			backtrack(true)
 	# if there is an unexplored path next to us, take it
 	if has_unexplored_path(current_state):
 		exploring = true
@@ -346,7 +344,7 @@ func step(pos,dir,backtracking=false,checking=false):
 	
 	# either add or remove the state from unexplored_states
 	if has_unexplored_path(current_state):
-		if not result[2]: 
+		if not result[2] and not current_state in unexplored_states: 
 			unexplored_states.append(current_state)
 	for state in unexplored_states:
 		if not has_unexplored_path(state):
@@ -355,11 +353,11 @@ func step(pos,dir,backtracking=false,checking=false):
 	return result
 
 
-func backtrack():
+func backtrack(forwards=false):
 	# If we find a tile that doesn't have unexplored directions, we backtrack until we find one that does
 	# To prevent the Solver from constantly backtracking after the first round of exploration, 
 	# it will only do this if it doesn't have a "Q value path" to follow
-	while not has_unexplored_path(current_state) and get_best_move(current_state)[0] == -INF:
+	while not has_unexplored_path(current_state,forwards) and (forwards or get_best_move(current_state)[0] == -INF):
 		if not steps_taken.size(): return
 		var result = step(current_state,go_back(steps_taken[steps_taken.size()-1]),true)
 		steps_taken.remove(steps_taken.size()-1)
