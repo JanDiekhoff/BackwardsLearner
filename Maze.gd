@@ -145,7 +145,7 @@ func calculate_state(pos):
 ## the bottom right corner is the terminal state
 func calculate_reward(hit_wall,state):
 	if state == Vector2(0,height-1) or state == Vector2(width-1,0): 
-		return width*height
+		return 10
 	if hit_wall:
 		return -5
 	else:

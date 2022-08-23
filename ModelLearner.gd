@@ -18,7 +18,7 @@ var running = false
 var qtable = {}
 var rewards = {}
 
-var discount_rate = .96
+var discount_rate = .9
 var epsilon = 1
 var exploration_round = false
 
@@ -68,7 +68,10 @@ func move_backwards():
 		if not state in qtable:
 			qtable[state] = []
 			for action in explored_map[state].size():
-				qtable[state].insert(action,0)
+				if state in terminal_states:
+					qtable[state].insert(action,0)
+				else:
+					qtable[state].insert(action,-INF)
 	
 	# states_to_visit "inverts" the explored map so it can be traversed backwards
 	var states_to_visit = {}
@@ -231,15 +234,22 @@ func draw_results():
 	
 	for state in qtable:
 		if state in terminal_states: continue
-		var state_average_value = 0
+		#var state_average_value = 0
+		#for value in qtable[state]:
+		#	state_average_value += value
+		#state_average_value /= qtable[state].size()
+		
+		#state_average_value += offset
+		#state_average_value = log(state_average_value)
+		
+		#var percent = (state_average_value - min_value) / (max_value - min_value)
+		var state_max_value = -INF
 		for value in qtable[state]:
-			state_average_value += value
-		state_average_value /= qtable[state].size()
+			if value > state_max_value: state_max_value = value
+		state_max_value += offset
+		state_max_value = log(state_max_value)
 		
-		state_average_value += offset
-		state_average_value = log(state_average_value)
-		
-		var percent = (state_average_value - min_value) / (max_value - min_value)
+		var percent = (state_max_value - min_value) / (max_value - min_value)
 		var c = Color(1-(percent*2-1),percent*2,0)
 		map.paint_pos(state,c)
 
