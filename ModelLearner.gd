@@ -62,11 +62,13 @@ func move():
 
 
 ## Recursively moves backwards through the explored map and fills the Q table 
-func move_backwards():	
+func move_backwards():
 	# Fills all Q table states with an initial value. This is necessary for the proper filling in the next step
 	for state in explored_map:
 		if not state in qtable:
-			qtable[state] = [0,0,0,0]
+			qtable[state] = []
+			for action in explored_map[state].size():
+				qtable[state].insert(action,0)
 	
 	# states_to_visit "inverts" the explored map so it can be traversed backwards
 	var states_to_visit = {}
@@ -168,8 +170,8 @@ func move_forwards():
 			var result = step(current_state,get_direction_to(current_state,point))
 		
 		#travel the unknown path, until we hit a known tile
-		while has_unexplored_path(current_state):
-			chosen_direction = get_unexplored_path(current_state)
+		while has_unexplored_path(current_state,true):
+			chosen_direction = get_unexplored_path(current_state,true)
 			var result = step(current_state,chosen_direction)
 			if goal_found: return
 			backtrack()
@@ -256,11 +258,19 @@ func go_back(dir):
 
 ## Returns a random unexplored direction from a given position
 ## If there are no unexplored directions, returns null
-func get_unexplored_path(slot):
+func get_unexplored_path(slot,forwards=false):
 	var unexplored = []
 	for direction in range(actions.size()):
 		if rewards[slot][direction] == null:
 			unexplored.append(direction)
+	
+	if forwards:
+		# Prevents going back by removing the opposite of the last taken step
+		if steps_taken:
+			for i in range(unexplored.size()):
+				if unexplored[i] == go_back(steps_taken[steps_taken.size()-1]):
+					unexplored.remove(i)
+					break
 	
 	if unexplored.size() > 0:
 		return unexplored[randi() % unexplored.size()]
@@ -269,11 +279,19 @@ func get_unexplored_path(slot):
 
 
 ## Checks if a given position has unexplored directions
-func has_unexplored_path(slot):
+func has_unexplored_path(slot,forwards=false):
 	var unexplored = []
 	for direction in range(actions.size()):
 		if rewards[slot][direction] == null:
 			unexplored.append(direction)
+		
+	if forwards:
+		# Prevents going back by removing the opposite of the last taken step
+		if steps_taken:
+			for i in range(unexplored.size()):
+				if unexplored[i] == go_back(steps_taken[steps_taken.size()-1]):
+					unexplored.remove(i)
+					break
 	
 	return unexplored.size() > 0
 
@@ -302,14 +320,18 @@ func step(pos,dir,backtracking=false,checking=false):
 	
 	# initialize the state in the explored map
 	if not current_state in explored_map:
-		explored_map[current_state] = [null,null,null,null]
+		explored_map[current_state] = []
+		for action in actions.size():
+			explored_map[current_state].insert(action,null)
 	explored_map[old_state][dir] = current_state
 	if not result[3] and not backtracking:
 		steps_taken.append(dir)
 	
 	# initialize rewards for the state if they dont exist yet
 	if not current_state in rewards:
-		rewards[current_state] = [null,null,null,null]
+		rewards[current_state] = []
+		for action in explored_map[current_state].size():
+			rewards[current_state].insert(action,null)
 	rewards[old_state][dir] = result[1]
 	
 	# check for walls next to our state so that they aren't added to unexplored states
@@ -319,7 +341,8 @@ func step(pos,dir,backtracking=false,checking=false):
 		goal_found = true
 		if not current_state in terminal_states:
 			terminal_states.append(current_state)
-			rewards[current_state] = [0,0,0,0]
+			for action in explored_map[current_state].size():
+				rewards[current_state][action] = 0
 	
 	# either add or remove the state from unexplored_states
 	if has_unexplored_path(current_state):
