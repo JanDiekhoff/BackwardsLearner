@@ -107,7 +107,6 @@ func move_backwards():
 						var best_neighbour = qtable[explored_map[state][action]].max()
 						var result = reward + discount_rate * best_neighbour
 						if result >= qtable[state][action] or qtable[state][action] == 0:
-							if result == 0: print(result)
 							qtable[state][action] = result
 						else: next_terminal = true
 	
