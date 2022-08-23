@@ -170,8 +170,8 @@ func move_forwards():
 			var result = step(current_state,get_direction_to(current_state,point))
 		
 		#travel the unknown path, until we hit a known tile
-		while has_unexplored_path(current_state,true):
-			chosen_direction = get_unexplored_path(current_state,true)
+		while has_unexplored_path(current_state):
+			chosen_direction = get_unexplored_path(current_state)
 			var result = step(current_state,chosen_direction)
 			if goal_found: return
 			backtrack()
