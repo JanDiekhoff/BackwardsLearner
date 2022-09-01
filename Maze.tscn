@@ -1,14 +1,12 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=3 format=2]
 
 [ext_resource path="res://Maze.gd" type="Script" id=1]
 [ext_resource path="res://road_tiles.tres" type="TileSet" id=2]
-[ext_resource path="res://Solver.tscn" type="PackedScene" id=3]
-[ext_resource path="res://ModelLearner.gd" type="Script" id=4]
 
 [node name="Maze" type="Node2D"]
 script = ExtResource( 1 )
-width = 20
-height = 20
+width = 5
+height = 5
 
 [node name="Results" type="Node2D" parent="."]
 
@@ -20,23 +18,3 @@ format = 1
 [node name="Camera2D" type="Camera2D" parent="TileMap"]
 anchor_mode = 0
 current = true
-
-[node name="Solver" parent="." instance=ExtResource( 3 )]
-script = ExtResource( 4 )
-
-[node name="BackwardsLearner" type="Button" parent="."]
-margin_left = 300.0
-margin_top = 312.0
-margin_right = 502.0
-margin_bottom = 378.0
-text = "Backwards Learner"
-
-[node name="ReinforcementLearner" type="Button" parent="."]
-margin_left = 709.0
-margin_top = 311.0
-margin_right = 911.0
-margin_bottom = 377.0
-text = "Reinforcement Learner"
-
-[connection signal="pressed" from="BackwardsLearner" to="." method="_on_Button_pressed" binds= [ "ModelLearner" ]]
-[connection signal="pressed" from="ReinforcementLearner" to="." method="_on_Button_pressed" binds= [ "ReinforcementSolver" ]]

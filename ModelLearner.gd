@@ -1,6 +1,14 @@
 extends Node2D
-
+class_name BQSolver
+signal done
 ####### VARIABLES ######
+
+var file
+var max_episode_steps = INF
+var current_episode_steps = 0
+var current_episode = 0
+var max_episodes = INF
+
 
 enum actions {UP=0,RIGHT=1,DOWN=2,LEFT=3}
 var map
@@ -19,7 +27,10 @@ var qtable = {}
 var rewards = {}
 
 var discount_rate = .9
-var epsilon = 1
+var epsilon = 1.0                 # Exploration rate
+var max_epsilon = 1.0             # Exploration probability at start
+var min_epsilon = 0.01            # Minimum exploration probability 
+var decay_rate = -0.01            # Exponential decay rate for exploration prob
 var exploration_round = false
 
 func _ready():
@@ -27,8 +38,10 @@ func _ready():
 
 
 ## called by the Maze when it is done setting up
-func ready():
-	pause_mode = Node.PAUSE_MODE_STOP
+func ready(episodes,max_steps,f):
+	file = f
+	max_episodes = episodes
+	max_episode_steps = max_steps
 	map = get_parent()
 	# sets the initial values needed to start
 	current_state = map.default_state
@@ -43,6 +56,10 @@ func ready():
 
 ## called once per frame
 func _physics_process(delta):
+	if current_episode == max_episodes:
+		set_physics_process(false)
+		emit_signal("done")
+		return
 	move()
 
 
@@ -110,7 +127,7 @@ func move_backwards():
 							qtable[state][action] = result
 						else: next_terminal = true
 	
-	draw_results()
+	#print_results()
 	
 	# Reset the solver to its default position
 	position = Vector2.ZERO
@@ -125,6 +142,11 @@ func move_backwards():
 	
 	# decide, if the next round will be an exploration round
 	exploration_round = unexplored_states.size() > 0 and randf() <= epsilon
+	
+	file.store_string("Episode: " + str(current_episode) + ", Steps taken: " + str(current_episode_steps) + "\n")
+	current_episode += 1
+	current_episode_steps = 0
+	epsilon = min_epsilon + (max_epsilon - min_epsilon) * exp(decay_rate*current_episode)
 
 
 func get_best_move(state):
@@ -168,11 +190,14 @@ func move_forwards():
 		var path = astar.get_point_path(back[current_state],back[unexplored_pos])
 		path.remove(0)
 		for point in path:
+			current_episode_steps = current_episode_steps + 1
 			var result = step(current_state,get_direction_to(current_state,point))
 		
 		#travel the unknown path, until we hit a known tile
 		while has_unexplored_path(current_state,true):
 			chosen_direction = get_unexplored_path(current_state,true)
+			
+			current_episode_steps = current_episode_steps + 1
 			var result = step(current_state,chosen_direction)
 			if goal_found: return
 			backtrack(true)
@@ -189,6 +214,8 @@ func move_forwards():
 	
 	# Tell the environment where are and what we want to do
 	# result = [new_state, reward, done, hit_wall]
+	
+	current_episode_steps = current_episode_steps + 1
 	var result = step(current_state,chosen_direction)
 	if goal_found: return
 	
@@ -308,17 +335,22 @@ func check_neighbor(state):
 	if not state in explored_map: return
 	for i in range(explored_map[state].size()):
 		if rewards[state][i] == null:
+			
+			current_episode_steps = current_episode_steps + 1
 			var result = step(state,i,false,true)
 			if result[3]:
 				explored_map[state][i] = state
 				rewards[state][i] = result[1]
 			else:
+				
+				current_episode_steps = current_episode_steps + 1
 				step(result[0],go_back(i),false,true)
 
 
 func step(pos,dir,backtracking=false,checking=false):
 	# tell the map where we want to go and from where
 	# result = [new_state, reward, episode done, hit wall]
+	# print("episode: ",current_episode ,"steps: ",current_episode_steps)
 	var result = map.step(pos,dir,checking)
 	if checking: return result
 	
@@ -368,5 +400,7 @@ func backtrack(forwards=false):
 	# it will only do this if it doesn't have a "Q value path" to follow
 	while not has_unexplored_path(current_state,forwards) and (forwards or get_best_move(current_state)[0] == -INF):
 		if not steps_taken.size(): return
+		
+		current_episode_steps = current_episode_steps + 1
 		var result = step(current_state,go_back(steps_taken[steps_taken.size()-1]),true)
 		steps_taken.remove(steps_taken.size()-1)

@@ -8,8 +8,20 @@
 
 config_version=4
 
-_global_script_classes=[  ]
+_global_script_classes=[ {
+"base": "Node2D",
+"class": "BQSolver",
+"language": "GDScript",
+"path": "res://ModelLearner.gd"
+}, {
+"base": "Node2D",
+"class": "QSolver",
+"language": "GDScript",
+"path": "res://ReinforcementSolver.gd"
+} ]
 _global_script_class_icons={
+"BQSolver": "",
+"QSolver": ""
 }
 
 [application]

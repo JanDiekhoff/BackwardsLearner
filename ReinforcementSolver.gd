@@ -1,9 +1,10 @@
 extends Node2D
-
+class_name QSolver
+signal done
 # Adapted from https://github.com/simoninithomas/Deep_reinforcement_learning_Course/tree/master/Q%20learning/FrozenLake
 
 ####### VARIABLES ######
-var max_episode_steps = 1000
+var max_episode_steps = INF
 var current_episode_steps = 0
 var width = 0
 var height = 0
@@ -12,37 +13,40 @@ var rewards = []
 var total_rewards = 0
 var steps = []
 
-var total_episodes = 250      # Total episodes
+var total_episodes = 250          # Total episodes
 var current_episode = 0
-var learning_rate = 0.8           # Learning rate
-var max_steps = 99                # Max steps per episode
-var discount_rate = 0.95          # Discounting rate
+var learning_rate = .1           # Learning rate
+var discount_rate = 0.9           # Discounting rate
 var current_state
 
 # Exploration parameters
 var epsilon = 1.0                 # Exploration rate
 var max_epsilon = 1.0             # Exploration probability at start
 var min_epsilon = 0.01            # Minimum exploration probability 
-var decay_rate = 0.001            # Exponential decay rate for exploration prob
+var decay_rate = -0.01            # Exponential decay rate for exploration prob
 
 var actions = [0,1,2,3] # UP, RIGHT, DOWN, LEFT
 var map
 
-
-func _ready():
-	set_physics_process(false)
+var file
 
 
 ## called by the Maze when it is done setting up
-func ready():
+func ready(episodes,max_steps,f):
+	max_episode_steps = max_steps
+	total_episodes = episodes
 	map = get_parent()
 	width = map.width
-	height = map.height
+	height = width
+	
+	file = f
+	
 	current_state = map.default_state
 	for x in range(width):
 		for y in range(height):
-			qtable[Vector2(x,y)] = [0,0,0,0]
-	set_physics_process(true)
+			qtable[Vector2(x,y)] = []
+			for a in actions.size():
+				qtable[Vector2(x,y)].insert(a,rand_range(-.1,.1))
 
 
 ## called once per frame
@@ -70,6 +74,7 @@ func _physics_process(delta):
 			start_new_episode()
 	else:
 		set_physics_process(false)
+		emit_signal("done")
 
 
 func start_new_episode():
@@ -77,18 +82,17 @@ func start_new_episode():
 	total_rewards = 0
 	position = Vector2.ZERO
 	current_state = map.default_state
-	print("\nEpisode: " + str(current_episode) + "\nSteps taken: " + str(current_episode_steps) + "\n")
+	file.store_string("Episode: " + str(current_episode) + ", Steps taken: " + str(current_episode_steps) + "\n")
 	current_episode += 1
 	steps.append(current_episode_steps)
 	current_episode_steps = 0
-	epsilon = min_epsilon + (max_epsilon - min_epsilon) * exp(-decay_rate*current_episode)
+	epsilon = min_epsilon + (max_epsilon - min_epsilon) * exp(decay_rate*current_episode)
 
 
 ## Adds a label containing the Q value of each state to each known position
 ## These values should decrease from the terminal state
 func print_results(state):
-	map.wipe_value(state)
-	map.print_value(state,qtable[state].max())
+	return
 
 
 func get_best_action(state):
