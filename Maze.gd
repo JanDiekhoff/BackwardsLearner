@@ -133,7 +133,7 @@ func step(state,action,checking=false):
 		add_pos(Solver.position)
 	state = calculate_state(Solver.position)
 	var reward = calculate_reward(hit_wall,state)
-	return [state,reward,reward>=0,hit_wall]
+	return [state,reward,reward>=10,hit_wall]
 
 
 ## Calculates the state
@@ -144,7 +144,7 @@ func calculate_state(pos):
 
 ## the bottom right corner is the terminal state
 func calculate_reward(hit_wall,state):
-	if state == Vector2(0,height-1) or state == Vector2(width-1,0): 
+	if state == Vector2(width-1,height-1): # or state == Vector2(width-1,0): 
 		return 10
 	if hit_wall:
 		return -5
@@ -201,10 +201,10 @@ func wipe_values():
 func wipe_value(pos):
 	pos *= tile_size
 	pos += tile_size/3
-	for c in $Results.get_children():
-		if c.rect_global_position == pos:
-			c.queue_free()
-			break
+	#for c in $Results.get_children():
+	#	if c.rect_global_position == pos:
+	#		c.queue_free()
+	#		break
 
 ## Starts the algorithm with the chosen type
 func _on_Button_pressed(type):

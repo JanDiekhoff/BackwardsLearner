@@ -35,6 +35,7 @@ func _ready():
 
 ## called by the Maze when it is done setting up
 func ready():
+	print("Start: ", OS.get_time())
 	map = get_parent()
 	width = map.width
 	height = map.height
@@ -77,11 +78,12 @@ func start_new_episode():
 	total_rewards = 0
 	position = Vector2.ZERO
 	current_state = map.default_state
-	print("\nEpisode: " + str(current_episode) + "\nSteps taken: " + str(current_episode_steps) + "\n")
+	#print("\nEpisode: " + str(current_episode) + "\nSteps taken: " + str(current_episode_steps) + "\n")
 	current_episode += 1
 	steps.append(current_episode_steps)
 	current_episode_steps = 0
 	epsilon = min_epsilon + (max_epsilon - min_epsilon) * exp(-decay_rate*current_episode)
+	print("Episode End: ", OS.get_time())
 
 
 ## Adds a label containing the Q value of each state to each known position

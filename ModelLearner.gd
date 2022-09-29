@@ -28,6 +28,7 @@ func _ready():
 
 ## called by the Maze when it is done setting up
 func ready():
+	print("Start: ", OS.get_time())
 	pause_mode = Node.PAUSE_MODE_STOP
 	map = get_parent()
 	# sets the initial values needed to start
@@ -52,12 +53,11 @@ func move():
 	if not running:
 		running = true
 		if goal_found:
+			print("Episode End: ", OS.get_time())
 			move_backwards()
 		else:
 			move_forwards()
 		# Pauses briefly after each step
-		# to make the process more watchable
-		yield(get_tree().create_timer(.03),"timeout")
 		running = false
 
 
